@@ -1,8 +1,6 @@
 FROM alpine:latest
 USER root
-RUN export http_proxy=http://proxy.rd.francetelecom.fr:8080/  \
-&& export https_proxy=http://proxy.rd.francetelecom.fr:8080/ \
-&& apk add curl \
+RUN export apk add curl \
 && apk add wget \
 && apk add make \
 && apk add perl \

@@ -9,8 +9,6 @@ RUN set -x \
     && echo "deb-src http://deb.debian.org/debian bookworm-updates main" >> /etc/apt/sources.list \
     && cat /etc/apt/sources.list \
     && cd /etc/apt/apt.conf.d \
-    && export http_proxy=http://proxy.rd.francetelecom.fr:8080/  \
-    && export https_proxy=http://proxy.rd.francetelecom.fr:8080/ \
     && apt-get update \
     && apt-get -y  install curl \
     && apt-get -y install gedit \
@@ -21,9 +19,7 @@ RUN set -x \
     && apt-get remove --purge --auto-remove -y \
     && rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx.list
 
-RUN set -x \
-    && export http_proxy=http://proxy.rd.francetelecom.fr:8080/  \
-    && export https_proxy=http://proxy.rd.francetelecom.fr:8080/ \
+RUN set -x  \
     && mkdir -p /var/cache/nginx \
     && wget https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz \
     && wget https://www.openssl.org/source/openssl-3.0.0.tar.gz \
