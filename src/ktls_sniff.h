@@ -12,10 +12,9 @@ struct data{
     int pid;
     int socket;
     char message[SIZE_MESSAGE];
-}data;
-
+};
 
 struct socket_info{
     int level_protocol;
     int optname;
-}socket_info;
+};

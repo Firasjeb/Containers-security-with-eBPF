@@ -13,7 +13,7 @@ all : $(OUTPUT)/ktls_sniff.o $(OUTPUT)/ktls_sniff.bpf.o $(OUTPUT)/ktls_sniff.ske
 
 #Compiler le prorgramme BPF kernel en fichier objet
 $(OUTPUT)/ktls_sniff.bpf.o: ktls_sniff.bpf.c
-	$(CLANG) $(CFLAGS) -O2 -target bpf -D__TARGET_ARCH_$(ARCH) -c ktls_sniff.bpf.c -o $@
+	$(CLANG) $(CFLAGS) -O2 -target bpf -D__TARGET_ARCH_$(ARCH) -c ktls_sniff.bpf.c -o $@ 
 
 
 #Génerer le squelette 
