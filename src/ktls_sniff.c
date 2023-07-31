@@ -5,28 +5,29 @@
 //#include <bpf/libbpf.h>
 #include <bpf/bpf.h>
 #include "ktls_sniff.skel.h"
-
+#include <stdio.h>
+#include <stdlib.h>
 
 static volatile bool exiting = false;
 
 
-void handle_data(void *ctx,int cpu,void *data, __u32 size)
+int handle_data(void *ctx,void *data, size_t size)
 {
     struct data *my_data = (struct data*) data;
+    FILE* file;
     
-    printf(" Size of data : %d , Index of CPU %d  \n",size,cpu);
-    printf("%s\n",my_data -> message);
-
+    if(my_data -> len > 100){
+        file = fopen("output.txt","a+");
+        if(file == NULL){
+            printf("Failed to open file\n");
+            exit(1);
+        }
+        //fwrite(&my_data->len,sizeof(my_data->len),1,file);
+        fwrite(my_data->message,my_data->len,1,file);
+        fclose(file);
+    }
     
-    
-
-}
-
-void lost_data(void *ctx, int cpu , __u64 size)
-{
-
-    fprintf(stderr,"Failed to load data  : DATA LOST \n");
-
+    return 0;
 }
 
 
@@ -43,7 +44,7 @@ int print_libbpf_log(enum libbpf_print_level level,const char* fmt, va_list args
 int main(int argc, char *argv[]){
     
     int err;
-    struct perf_buffer* perf;
+    struct ring_buffer* ring;
     int fd_map_traced;
     int fd_perf_buffer;
     int pid_trace;
@@ -73,40 +74,33 @@ int main(int argc, char *argv[]){
 
 
     fd_map_traced = bpf_map__fd(skel_ktls -> maps.traced_pids);
+    
+    
     printf("Choose the PID  of process to trace \n");
     scanf("%d",&pid_trace);
-    printf("Started tracing the proces %d \n",pid_trace);
     err = bpf_map_update_elem(fd_map_traced,&pid_trace,&pid_trace,BPF_ANY);
     if(err){
         fprintf(stderr,"Failed to update map \n");
         goto cleanup;
 
-    }
-    printf("Choose the second PID  of process to trace \n");
-    scanf("%d",&pid_trace);
-    err = bpf_map_update_elem(fd_map_traced,&pid_trace,&pid_trace,BPF_ANY);
-    if(err){
-        fprintf(stderr,"Failed to update map \n");
-        goto cleanup;
     }
 
     fd_perf_buffer = bpf_map__fd(skel_ktls-> maps.data_tls);
     if(fd_perf_buffer < 0){
-        fprintf(stderr,"Failed to find perf buffer");
+        fprintf(stderr,"Failed to find ringbuffer");
     }
 
-    perf = perf_buffer__new(fd_perf_buffer,8,handle_data,lost_data,
-                            NULL,NULL);
-    err = libbpf_get_error(perf);
+    ring = ring_buffer__new(fd_perf_buffer,handle_data,NULL,NULL);
+   
 
-    if(err){
+    if(!ring){
         fprintf(stderr,"Failed to open perf buffer\n");
         goto cleanup;
 
     }
 
     while(!exiting){
-        err  = perf_buffer__poll(perf,200);
+        err  = ring_buffer__poll(ring,100);
         if(err == -EINTR){
             err = 0;
             break;

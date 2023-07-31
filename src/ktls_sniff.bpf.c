@@ -31,12 +31,9 @@ struct {
 // Pour dechiffrer
 
 struct{
-    __uint(type,BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size,sizeof(__u32));
-    __uint(value_size,sizeof(__u32));
+    __uint(type,BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries,256*2048);
 } data_tls SEC(".maps");
-
-
 
 
 struct{
@@ -69,9 +66,11 @@ int trace_event_setsockopt(struct trace_event_raw_sys_enter *ctx){
     int current_pid = bpf_get_current_pid_tgid() >> 32;
     traced_pid = bpf_map_lookup_elem(&traced_pids,&current_pid);
 
+
     if(traced_pid == NULL)
         return 0;
     
+
     if(*traced_pid != current_pid)
         return 0;
     
@@ -105,13 +104,17 @@ int trace_event_recvmsg(struct trace_event_raw_sys_enter* ctx){
 
     if(socket == NULL)
         return 0;
+    
+
+    //Départ du chrono
+    u64 timestamp_debut = bpf_ktime_get_ns();
+    bpf_printk("Timestamp debut : %d \n",timestamp_debut);
 
     msg = (struct user_msghdr*) BPF_CORE_READ(ctx,args[1]) ;  
     
     if(msg){
         bpf_core_read_user(&my_iovec,sizeof(my_iovec),&msg->msg_iov);
         bpf_core_read_user(&buffer,sizeof(buffer),&my_iovec->iov_base);
-        //bpf_printk("Adress buffer : %p\n",(char*) buffer);
         bpf_map_update_elem(&messages,&current_pid,&buffer,BPF_ANY);
     }
     
@@ -133,32 +136,36 @@ int trace_event_recvmsg(struct trace_event_raw_sys_enter* ctx){
         buffer = bpf_map_lookup_elem(&messages,&current_pid);
 
         data = bpf_map_lookup_elem(&heap,&key);
+        //data = bpf_ringbuf_reserve(&data_tls,sizeof(*data),0);
 
-        if(data == NULL){
+        if(!data){
             bpf_printk("Failed to find data in the heap \n");
             return 0;
         }
                       
         if(buffer != NULL && len >0){
             bpf_probe_read(&p,sizeof(p),buffer); 
-            data->len = (len < 0 ) ? (len && 0xFFFFFFFF) : MAX_DATA_SIZE;
+            bpf_probe_read(&data->len,sizeof(data->len),&len);
 
-            if(data ->len <0)
-                return 0;
-
-            if(data-> len > MAX_DATA_SIZE)
+            if( data ->len <= 100 || data->len > MAX_DATA_SIZE)
                 return 0;
     
-            bpf_probe_read_str(data->message,data->len,p);
-            res  = bpf_perf_event_output(ctx,&data_tls,BPF_F_CURRENT_CPU,data,sizeof(*data));
-            if(res)
-                bpf_printk("Failed to send data to buffer, res :%d \n",res);
+            bpf_probe_read_str(data->message,data->len,p);        
+            //bpf_ringbuf_submit(data,0);
+            bpf_ringbuf_output(&data_tls,data,sizeof(*data),0);
+            //Fin du chrono
+            u64 timestamp_fin = bpf_ktime_get_ns();
+            bpf_printk("Timestamp fin : %d \n",timestamp_fin);
 
+            //if(res)
+               // bpf_printk("Failed to send data to buffer, res :%d \n",res);
         }
 
         return 0;
     }
     
+
+  
 
 
 

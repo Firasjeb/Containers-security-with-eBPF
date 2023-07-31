@@ -10,7 +10,7 @@
 struct data{
     int len;
     char message[MAX_DATA_SIZE];
-};
+    };
 
 struct socket_info{
     int level_protocol;
