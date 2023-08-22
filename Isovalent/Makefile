@@ -1,61 +1,37 @@
-OUTPUT := .output
-CLANG ?= clang
-LIBBPF_SRC := $(abspath ../../libbpf-master/src)
-BPFTOOL_SRC := $(abspath ../../libbpf-bootstrap/bpftool/src)
-LIBBPF_OBJ := $(abspath $(OUTPUT)/libbpf.a)
-BPFTOOL_OUTPUT ?= $(abspath $(OUTPUT)/bpftool)
-BPFTOOL ?= $(BPFTOOL_OUTPUT)/bootstrap/bpftool
+.PHONY: clean
+
+CLANG:=clang
+VMLINUX:=vmlinux.h
+CFLAGS:= -g -Wall
+OUTPUT:=.output
 ARCH := $(shell uname -m | sed 's/x86_64/x86/')
-VMLINUX := vmlinux.h
-INCLUDES := -I$(dir $(VMLINUX)) -I$(OUTPUT) -I/home/firasj/libbpf-master/include/uapi 
-APPS = my_prog
-CFLAGS := -g -Wall
+BPFTOOL=/usr/local/sbin/bpftool
+_dummy := $(shell mkdir -p  $(OUTPUT))
+
+
+all : $(OUTPUT)/my_prog.o $(OUTPUT)/my_prog.bpf.o $(OUTPUT)/my_prog.skel.h my_prog
+
+#Compiler le prorgramme BPF kernel en fichier objet
+$(OUTPUT)/my_prog.bpf.o: my_prog.bpf.c
+	$(CLANG) $(CFLAGS) -O2 -target bpf -D__TARGET_ARCH_$(ARCH) -c my_prog.bpf.c -o $@ 
+
+
+#Génerer le squelette 
+$(OUTPUT)/my_prog.skel.h: $(OUTPUT)/my_prog.bpf.o | $(OUTPUT) $(BPFTOOL)
+	$(call msg,GEN-SKEL,$@)
+	$(Q)$(shell $(BPFTOOL) gen skeleton $(OUTPUT)/my_prog.bpf.o > $@)
+
+
+#Compiler le programme user en fichier objet
+$(OUTPUT)/my_prog.o: my_prog.c $(OUTPUT)/my_prog.skel.h
+	$(CC) $(CFLAGS) -I $(OUTPUT)/ -lbpf -c my_prog.c -o $@
+
+#Build le binaire
+my_prog : $(OUTPUT)/my_prog.o
+	$(Q) $(CC) $(CFLAGS) $^ -lbpf -lelf -lz -o $@
+
 
 clean:
 	$(call msg,CLEAN)
-	$(Q)rm -rf $(OUTPUT) $(APPS)
-
-
-$(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT):
-	$(call msg,MKDIR,$@)
-
-
-
-#Build libbpf comme librairie STATIC
-# OBJDIR : BUILD, DESTDIR : INSTALL
-
-$(LIBBPF_OBJ): $(wildcard $(LIBBPF_SRC)/*.[ch] $(LIBBPF_SRC)/Makefile) | $(OUTPUT)/libbpf
-	$(call msg,LIB,$@)
-	$(Q)$(MAKE) -C $(LIBBPF_SRC) BUILD_STATIC_ONLY=1		      \
-		    OBJDIR=$(dir $@)/libbpf DESTDIR=$(dir $@)		      \
-		    INCLUDEDIR= LIBDIR= UAPIDIR=			      \
-		    install
-
-
-# Build bpftool
-$(BPFTOOL): | $(BPFTOOL_OUTPUT)
-	$(call msg,BPFTOOL,$@)
-	$(Q)$(MAKE) ARCH= CROSS_COMPILE= OUTPUT=$(BPFTOOL_OUTPUT)/ -C $(BPFTOOL_SRC) bootstrap
-
-#Compiler BPF code en fichier objet
-$(OUTPUT)/%.bpf.o: %.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) $(VMLINUX)| $(OUTPUT) $(BPFTOOL)
-	$(call msg,BPF,$@)
-	$(Q)$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) $(INCLUDES) -c $(filter %.c,$^) -o $@ 
-	
-	
-# Générer le squelette : skel.h
-$(OUTPUT)/%.skel.h: $(OUTPUT)/%.bpf.o | $(OUTPUT) $(BPFTOOL)
-	$(call msg,GEN-SKEL,$@)
-	$(Q)$(BPFTOOL) gen skeleton $< > $@
-
-#Compiler code user space
-$(patsubst %,$(OUTPUT)/%.o,$(APPS)): %.o: %.skel.h
-$(OUTPUT)/%.o: %.c $(wildcard %.h) | $(OUTPUT)
-	$(call msg,CC,$@)
-	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $(filter %.c,$^) -o $@
-
-#Build binaire de l'application
-$(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
-	$(call msg,BINARY,$@)
-	$(Q)$(CC) $(CFLAGS) $^ -lelf -lz -o $@
-
+	$(Q)rm -rf $(OUTPUT) *.o
+	$(rm my_prog)

@@ -26,7 +26,13 @@
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
+
+    if(level >= LIBBPF_DEBUG){
+        return 0;
+    }
+
 	return vfprintf(stderr, format, args);
+
 }
 
 static volatile bool exiting = false;
@@ -59,7 +65,6 @@ int main(int argc,char ** argv){
     int perfbuf_fd;
     struct perf_buffer* perfbuf;
     struct bpf_map* sock_map;
-    struct bpf_program* my_prog;
 
     libbpf_set_print(libbpf_print_fn);
 
@@ -70,10 +75,10 @@ int main(int argc,char ** argv){
     }
 
     //Set attach type
-    if(bpf_program__set_expected_attach_type(skel->progs.prog_sockops,BPF_CGROUP_SOCK_OPS)){
-        fprintf(stderr,"Failed to set attach type \n");
-        return -1;
-    }
+    //if(bpf_program__set_expected_attach_type(skel->progs.prog_sockops,BPF_CGROUP_SOCK_OPS)){
+        //printf(stderr,"Failed to set attach type \n");
+        //return  -1;
+    //}
 
     //Charger le programme en mémoire
     err = my_prog_bpf__load(skel);
@@ -82,7 +87,6 @@ int main(int argc,char ** argv){
         return 1;
     }
 
-    my_prog = skel-> progs.prog_sockops;
     sock_map = skel -> maps.socketmap;
     fd_map = bpf_map__fd(sock_map);
     fd_prog_skmsg = bpf_program__fd(skel->progs.handle_ktls);
@@ -103,18 +107,10 @@ int main(int argc,char ** argv){
     int cgroup_fd;
     cgroup_fd = open("/sys/fs/cgroup/unified/my_cgroup",O_RDONLY);
     if(cgroup_fd == -1){
-        fprintf(stderr,"Enable to open cgroup 1");
+        fprintf(stderr,"Enable to open cgroup 1 \n");
         return -1;
     }
 
-
-    /*
-    int cgroup_fd_docker;
-    cgroup_fd_docker = open("/sys/fs/cgroup/unified/docker/759d78f781f9c233ef04dfc38c9170eb69e0222a34cfc91357e8f6377d42fd8b",O_RDONLY);
-    if(cgroup_fd_docker == -1){
-        fprintf(stderr,"Enable to open cgroup");
-        return -1;
-    }*/
 
 
     //Attacher le programme BPF à la map

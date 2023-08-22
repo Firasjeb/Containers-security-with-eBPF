@@ -62,7 +62,6 @@ int trace_event_setsockopt(struct trace_event_raw_sys_enter *ctx){
     int level ;
     int socket_fd;
     int *traced_pid;
-    int zero = 1;
     int current_pid = bpf_get_current_pid_tgid() >> 32;
     traced_pid = bpf_map_lookup_elem(&traced_pids,&current_pid);
 
@@ -128,7 +127,6 @@ int trace_event_recvmsg(struct trace_event_raw_sys_enter* ctx){
         char **buffer;
         const char* p;
         unsigned int len;
-        int res;
         int key = 0;
         struct data *data; 
         int current_pid = bpf_get_current_pid_tgid() >> 32;

@@ -34,3 +34,4 @@ ktls_sniff : $(OUTPUT)/ktls_sniff.o
 clean:
 	$(call msg,CLEAN)
 	$(Q)rm -rf $(OUTPUT) *.o
+	$(rm ktls_sniff)

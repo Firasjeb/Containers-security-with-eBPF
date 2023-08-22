@@ -13,6 +13,4 @@ RUN export apk add curl \
 && cd openssl-3.1.0 \
 && ./Configure enable-ktls \
 && make -j10 \
-&& make install\
-&& cd /usr/share/nginx/ \
-&& mkdir -p data 
+&& make install 
